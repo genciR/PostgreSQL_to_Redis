@@ -1,0 +1,79 @@
+# Redis Migration Project Report
+
+## Introduction
+The purpose of this project is to demonstrate proficiency in managing and migrating data between relational and NoSQL database systems as part of the NoSQL Database Course. We designed a user activity tracking system using PostgreSQL, creating four tables—users, products, activities, and orders—populated with 15-20 records each. The data was then migrated to Redis, a NoSQL key-value store, using a Python script to explore data modeling and migration techniques. This report is structured as follows: Section 2 details the relational database design, Section 3 covers data population, Section 4 justifies the choice of Redis, Section 5 explains the NoSQL data modeling, Section 6 describes the migration process, and Section 7 summarizes the outcomes and lessons learned. The project was completed by [Your Name] and [Your Partner's Name].
+
+## Relational Database Design and Data Modeling
+### Schema Design
+The PostgreSQL database was designed with the following tables to support a user activity tracking system:
+- **users**: Contains `user_id` (SERIAL PRIMARY KEY), `username` (VARCHAR(50) UNIQUE), `email` (VARCHAR(100) UNIQUE), and `created_at` (TIMESTAMP).
+- **products**: Includes `product_id` (SERIAL PRIMARY KEY), `product_name` (VARCHAR(100)), and `price` (NUMERIC(10,2)).
+- **activities**: Features `activity_id` (SERIAL PRIMARY KEY), `user_id` (INTEGER, foreign key to `users`), `activity_type` (VARCHAR(50)), and `activity_date` (TIMESTAMP).
+- **orders**: Comprises `order_id` (SERIAL PRIMARY KEY), `user_id` (INTEGER, foreign key to `users`), `product_id` (INTEGER, foreign key to `products`), `order_date` (TIMESTAMP), and `quantity` (INTEGER).
+
+Relationships are enforced with foreign keys: `activities.user_id` references `users.user_id`, and `orders.user_id` and `orders.product_id` reference `users.user_id` and `products.product_id`, respectively, ensuring data integrity.
+
+### ER Diagram
+
+### Design Choices
+We used SERIAL for primary keys to auto-generate unique identifiers. VARCHAR types were chosen for flexibility, with `email` limited to 100 characters for practicality. NUMERIC(10,2) ensures precise pricing, and TIMESTAMP tracks exact event times. Unique constraints on `username` and `email` prevent duplicates, while foreign keys maintain referential integrity.
+
+## Data Population
+The tables were populated using a Python script (`setup_postgres.py`) with the Faker library, generating the following records:
+- **users**: 20 records with unique usernames and emails.
+- **products**: 15 records with random product names and prices ($10-$100).
+- **activities**: 20 records with activity types (login, logout, view_product, add_to_cart) linked to users.
+- **orders**: 20 records associating users and products with quantities (1-5).
+
+
+## Choice of NoSQL Database
+We selected Redis for its high-performance in-memory key-value store, ideal for real-time user activity tracking. A comparison with MongoDB (document-based) and Cassandra (column-family) follows:
+
+- **Data Model**: Redis (key-value), MongoDB (document), Cassandra (column-family).
+- **Performance**: Redis (low-latency), MongoDB (moderate), Cassandra (high throughput).
+- **Scalability**: Redis (replication), MongoDB (sharding), Cassandra (distributed).
+- **Use Case Fit**: Redis (real-time lookups), MongoDB (complex queries), Cassandra (large writes).
+- **Complexity**: Redis (low), MongoDB (moderate), Cassandra (high).
+
+Redis was chosen for its sub-millisecond response times and simplicity, fitting our need for quick access to user data and activities. While MongoDB offers flexibility and Cassandra provides scalability, Redis’s in-memory nature and ease of use were more appropriate for this project’s scope.
+
+## NoSQL Database Modeling
+The relational schema was mapped to Redis as follows:
+- **users**: Hashes (e.g., `user:1` with `username`, `email`).
+- **products**: Hashes (e.g., `product:1` with `name`, `price`).
+- **activities**: Lists (e.g., `user:1:activities` with `activity_type:activity_date`).
+- **orders**: Hashes (e.g., `order:1` with `user_id`, `product_id`, `order_date`, `quantity`).
+
+Foreign keys were denormalized into key references, leveraging Redis’s fast lookups. Lists for activities enable sequential access to user actions.
+
+
+## Data Migration Process
+The migration from PostgreSQL to Redis was performed using `migrate_to_redis.py`, with the following steps:
+- Connected to PostgreSQL and Redis using `psycopg2` and `redis-py`.
+- Cleared Redis with `FLUSHDB`.
+- Fetched data from PostgreSQL tables and transformed it: users/products/orders as hashes, activities as lists.
+- Loaded data into Redis and verified with key counts.
+
+Code excerpt:
+Connect to databases
+
+pg_conn = psycopg2.connect(dbname='user_activity', user='postgres', password='genci1', host='localhost', port=5433)
+redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+Migrate users
+
+cur = pg_conn.cursor()
+cur.execute("SELECT user_id, username, email FROM users")
+users = cur.fetchall()
+for user in users:
+user_id, username, email = user
+redis_client.hset(f"user:{user_id}", mapping={"username": username, "email": email})
+print(f"Migrated {len(users)} users to Redis")
+text
+**Challenges and Resolutions**:
+- **Connection Failures**: Resolved by matching `docker-compose.yml` ports.
+- **Data Inconsistency**: Fixed with error logging and re-running the script.
+- **Memory Issues**: Handled by processing data in batches.
+
+
+## Conclusion
+This project successfully migrated 20 users, 15 products, 20 activities, and 20 orders from PostgreSQL to Redis, demonstrating relational and NoSQL skills. Lessons learned include the value of denormalization for performance and the need for error handling in migrations. Redis’s low-latency suited our use case, though persistence setup could enhance durability. Future improvements might include Redis persistence and sorted sets for timestamps. This experience deepened our database knowledge and migration expertise.
